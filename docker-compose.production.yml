@@ -1,0 +1,139 @@
+version: "3.1"
+
+# Complementary services, not part of geOrchestra core.
+# They are made to ease your life as a developer.
+# **NOT** production ready !
+
+volumes:
+  acme:
+  mviewer_apps:
+
+services:
+
+  traefik-front-proxy:
+    image: traefik:2.9
+    healthcheck:
+      test: traefik healthcheck --ping
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./resources/traefik_custom.yml:/etc/traefik/traefik.yml:ro
+      - acme:/acme
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.tls=true"
+      - "traefik.http.routers.traefik.rule=Host(`co.pigeosolutions.fr`) && (PathPrefix(`/traefik`) || PathPrefix(`/api`))"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.middlewares=traefik-strip@docker"
+      - "traefik.http.middlewares.traefik-strip.stripprefix.prefixes=/traefik"
+      - "traefik.http.routers.traefik.tls.certresolver=letsEncrypt"
+      - "traefik.http.routers.traefik.tls.domains[0].main=co.pigeosolutions.fr"
+
+  # static:
+  #   image: nginx:stable
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./resources/static:/usr/share/nginx/html:ro
+  #     - /etc/localtime:/etc/localtime:ro
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.static.tls=true"
+  #     - "traefik.http.routers.static.rule=Host(`co.pigeosolutions.fr`)"
+  #     - "traefik.http.routers.static.priority=1"
+  #     - "traefik.http.routers.static.tls.certresolver=letsEncrypt"
+  #     - "traefik.http.routers.static.tls.domains[0].main=co.pigeosolutions.fr"
+
+  proxy:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.proxy.tls=true"
+      - "traefik.http.routers.proxy.priority=2"
+      - "traefik.http.routers.proxy.tls.certresolver=letsEncrypt"
+      - "traefik.http.routers.proxy.tls.domains[0].main=co.pigeosolutions.fr"
+      - "traefik.http.routers.proxy.rule=Host(`co.pigeosolutions.fr`)"
+      - "traefik.http.services.proxy.loadbalancer.server.port=8080"
+      # CORS related. Open everything to the world.
+      - "traefik.http.routers.proxy.middlewares=corsheader@docker"
+      - "traefik.http.middlewares.corsheader.headers.accesscontrolallowmethods=GET, HEAD, POST, PUT, DELETE, OPTIONS, PATCH"
+      - "traefik.http.middlewares.corsheader.headers.accesscontrolalloworiginlist=*"
+      - "traefik.http.middlewares.corsheader.headers.accesscontrolmaxage=1800"
+      - "traefik.http.middlewares.corsheader.headers.addvaryheader=true"
+      - "traefik.http.middlewares.corsheader.headers.accesscontrolallowcredentials=true"
+      - "traefik.http.routers.proxy.middlewares=corsheader@docker,static-errors-middleware@docker"
+      # handle downstream errors
+      - "traefik.http.middlewares.static-errors-middleware.errors.status=500-599"
+      - "traefik.http.middlewares.static-errors-middleware.errors.service=static-docker@docker"
+      - "traefik.http.middlewares.static-errors-middleware.errors.query=/errors/50x.html"
+      # Add trailing slash to well-known apps
+      - "traefik.http.routers.traefik-redirect.tls=true"
+      - >-
+        traefik.http.routers.traefik-redirect.rule=Host(`co.pigeosolutions.fr`) && (
+        Path(`/analytics`)
+        || Path(`/datafeeder`)
+        || Path(`/datahub`)
+        || Path(`/console`)
+        || Path(`/geonetwork`)
+        || Path(`/geoserver`)
+        || Path(`/header`)
+        || Path(`/import`)
+        || Path(`/mapstore`)
+        || Path(`/ogc-api-records`)
+        || Path(`/mviewer`)
+        || Path(`/mviewerstudio`)
+        )
+      - "traefik.http.routers.traefik-redirect.priority=10"
+      - "traefik.http.routers.traefik-redirect.middlewares=add-trailing-slash@docker"
+      - "traefik.http.middlewares.add-trailing-slash.redirectregex.regex=^https?://(.*)/(.+)"
+      - "traefik.http.middlewares.add-trailing-slash.redirectregex.replacement=https://$${1}/$${2}/"
+      - "traefik.http.middlewares.add-trailing-slash.redirectregex.permanent=false"
+
+  cas:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.cas.tls=true"
+      - "traefik.http.routers.cas.priority=3"
+      - "traefik.http.routers.cas.rule=Host(`co.pigeosolutions.fr`) && PathPrefix(`/cas`)"
+      - "traefik.http.routers.cas.tls.certresolver=letsEncrypt"
+      - "traefik.http.routers.cas.tls.domains[0].main=co.pigeosolutions.fr"
+
+  smtp:
+    image: pigeosolutions/sendmail:20210906-1657-6e05771
+    environment:
+      HOSTNAME: co.pigeosolutions.fr
+    restart: always
+
+  ssh:
+    image: georchestra/ssh_data:latest
+    ports:
+      - "2222:22"
+    environment:
+      - USER_PASS=geoserver_password
+    volumes:
+      - geoserver_geodata:/mnt/geoserver_geodata
+    restart: always
+
+  # Python version
+  # Served under /${MVIEWERSTUDIO_URL_PATH_PREFIX}/ see docker/nginx/default.conf.template
+  mviewerstudio:
+    image: mviewer/mviewerstudio:latest
+    environment:
+      - CONF_PATH_FROM_MVIEWER=apps/store
+      - CONF_PUBLISH_PATH_FROM_MVIEWER=apps/public
+      - DEFAULT_ORG=no_org
+      - EXPORT_CONF_FOLDER=/home/apprunner/apps/store
+      - MVIEWERSTUDIO_PUBLISH_PATH=/home/apprunner/apps/public
+      - MVIEWERSTUDIO_URL_PATH_PREFIX=mviewerstudio
+    volumes:
+      - "mviewer_apps:/home/apprunner/apps"
+      - "./resources/mviewerstudio/config-python.json:/home/apprunner/mviewerstudio_backend/static/apps/config.json"
+
+  # Served under /mviewer/ see docker/nginx/default.conf.template
+  mviewer:
+    depends_on:
+      - mviewerstudio
+    image: mviewer/mviewer
+    volumes:
+        - "mviewer_apps:/usr/share/nginx/html/apps"  
