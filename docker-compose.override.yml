@@ -7,6 +7,7 @@ version: "3.1"
 volumes:
   smtp_maildir:
   acme:
+  mviewer_apps:
 
 services:
   #traefik-me-certificate-downloader:
@@ -163,3 +164,37 @@ services:
     volumes:
       - geoserver_geodata:/mnt/geoserver_geodata
     restart: always
+
+  # Python version
+  # Served under /${MVIEWERSTUDIO_URL_PATH_PREFIX}/ see docker/nginx/default.conf.template
+  mviewerstudio:
+#    build:
+#      context: .
+#      dockerfile: docker/Dockerfile-python-backend
+    image: mviewer/mviewerstudio:latest
+#    ports:
+#      - "8000:8000"
+    environment:
+      - CONF_PATH_FROM_MVIEWER=apps/store
+      - CONF_PUBLISH_PATH_FROM_MVIEWER=apps/public
+      - DEFAULT_ORG=idgeo
+      - EXPORT_CONF_FOLDER=/home/apprunner/apps/store
+      - MVIEWERSTUDIO_PUBLISH_PATH=/home/apprunner/apps/public
+      - MVIEWERSTUDIO_URL_PATH_PREFIX=mviewerstudio
+    volumes:
+      - "mviewer_apps:/home/apprunner/apps"
+      - "./resources/mviewerstudio/config-python.json:/home/apprunner/mviewerstudio_backend/static/apps/config.json"
+
+  # Served under /mviewer/ see docker/nginx/default.conf.template
+  mviewer:
+    depends_on:
+      - mviewerstudio
+    # this image is automatically built in
+    # the mviewer/mviewer github repository
+    # See https://github.com/mviewer/mviewer/pull/236
+    image: mviewer/mviewer
+#    ports:
+#      - "5051:80"
+    volumes:
+        - "mviewer_apps:/usr/share/nginx/html/apps"
+#
