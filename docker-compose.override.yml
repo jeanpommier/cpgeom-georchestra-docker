@@ -167,9 +167,6 @@ services:
   
   # Served under /${MVIEWERSTUDIO_URL_PATH_PREFIX}/ see docker/nginx/default.conf.template
   mviewerstudio:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile-python-backend
     image: mviewer/mviewerstudio:latest
     environment:
       - CONF_PATH_FROM_MVIEWER=apps/store
