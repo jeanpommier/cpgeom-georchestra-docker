@@ -87,7 +87,9 @@ services:
         || PathPrefix(`/logout`)
         || PathPrefix(`/mapstore`)
         || PathPrefix(`/ogc-api-records`)
-        || PathPrefix(`/_static`)
+        || PathPrefix(`/static`)
+        || PathPrefix(`/mviewer`)
+        || PathPrefix(`/mviewerstudio`)
         || Query(`login=`)
         )
       - "traefik.http.services.proxy.loadbalancer.server.port=8080"
@@ -117,6 +119,8 @@ services:
         || Path(`/import`)
         || Path(`/mapstore`)
         || Path(`/ogc-api-records`)
+        || Path(`/mviewer`)
+        || Path(`/mviewerstudio`)
         )
       - "traefik.http.routers.traefik-redirect.priority=10"
       - "traefik.http.routers.traefik-redirect.middlewares=add-trailing-slash@docker"
@@ -171,9 +175,7 @@ services:
  # Python version
   # Served under /${MVIEWERSTUDIO_URL_PATH_PREFIX}/ see docker/nginx/default.conf.template
   mviewerstudio:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile-python-backend
+    
     image: mviewer/mviewerstudio:latest
 #    ports:
 #      - "8000:8000"
