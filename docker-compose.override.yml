@@ -117,6 +117,8 @@ services:
         || Path(`/import`)
         || Path(`/mapstore`)
         || Path(`/ogc-api-records`)
+        || Path(`/mviewer`)
+        || Path(`/mviewerstudio`)
         )
       - "traefik.http.routers.traefik-redirect.priority=10"
       - "traefik.http.routers.traefik-redirect.middlewares=add-trailing-slash@docker"
