@@ -399,8 +399,10 @@ services:
     restart: always
 
   rabbitmq:
+    scale: 0
     image: docker.io/bitnami/rabbitmq:3.12
     healthcheck:
+      # test: rabbitmq-diagnostics -q ping && rabbitmq-diagnostics -q check_local_alarms
       test: rabbitmq-diagnostics -q ping && rabbitmq-diagnostics -q check_local_alarms
       interval: 60s
       timeout: 30s

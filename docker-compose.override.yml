@@ -6,24 +6,25 @@ version: "3.1"
 
 volumes:
   smtp_maildir:
+  acme:
 
 services:
-  traefik-me-certificate-downloader:
-    image: alpine
-    depends_on:
-      envsubst:
-        condition: service_completed_successfully
-    command: sh -c "cd /etc/ssl/traefik
-      && wget traefik.me/fullchain.pem -O traefik.me.crt
-      && wget traefik.me/privkey.pem -O traefik.me-key.pem"
-    volumes:
-      - ./resources/ssl:/etc/ssl/traefik
+  # traefik-me-certificate-downloader:
+  #   image: alpine
+  #   depends_on:
+  #     envsubst:
+  #       condition: service_completed_successfully
+  #   command: sh -c "cd /etc/ssl/traefik
+  #     && wget traefik.me/fullchain.pem -O traefik.me.crt
+  #     && wget traefik.me/privkey.pem -O traefik.me-key.pem"
+  #   volumes:
+  #     - ./resources/ssl:/etc/ssl/traefik
 
-  georchestra-127-0-1-1.traefik.me:
+  traefik:
     image: traefik:2.9
-    depends_on:
-      traefik-me-certificate-downloader:
-        condition: service_completed_successfully
+    # depends_on:
+    #   traefik-me-certificate-downloader:
+    #     condition: service_completed_successfully
     healthcheck:
       test: traefik healthcheck --ping
     ports:
@@ -31,17 +32,21 @@ services:
       - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./resources/ssl:/etc/certs:ro
-      - ./resources/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./resources/traefik-config.yml:/etc/traefik/config.yml:ro
+  #    - ./resources/ssl:/etc/certs:ro
+  #    - ./resources/traefik.yml:/etc/traefik/traefik.yml:ro
+  #    - ./resources/traefik-config.yml:/etc/traefik/config.yml:ro
+      - ./resources/traefik-custom.yml:/etc/traefik/traefik.yml:ro
+      - acme:/acme
     restart: always
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.traefik.tls=true"
-      - "traefik.http.routers.traefik.rule=Host(`georchestra-127-0-1-1.traefik.me`) && (PathPrefix(`/traefik`) || PathPrefix(`/api`))"
+      - "traefik.http.routers.traefik.rule=Host(`co.pigeosolutions.fr`) && (PathPrefix(`/traefik`) || PathPrefix(`/api`))"
       - "traefik.http.routers.traefik.service=api@internal"
       - "traefik.http.routers.traefik.middlewares=traefik-strip@docker"
       - "traefik.http.middlewares.traefik-strip.stripprefix.prefixes=/traefik"
+      - "traefik.http.routers.traefik.tls.certresolver=letsEncrypt"
+      - "traefik.http.routers.traefik.tls.domains[0].main=co.pigeosolutions.fr"
 
 
   static:
@@ -53,7 +58,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.static.tls=true"
-      - "traefik.http.routers.static.rule=Host(`georchestra-127-0-1-1.traefik.me`)"
+      - "traefik.http.routers.static.rule=Host(`co.pigeosolutions.fr`)"
       - "traefik.http.routers.static.priority=1"
 
   gateway:
@@ -62,7 +67,7 @@ services:
       - "traefik.http.routers.gateway.tls=true"
       - "traefik.http.routers.gateway.priority=2"
       - >-
-        traefik.http.routers.gateway.rule=Host(`georchestra-127-0-1-1.traefik.me`) && (
+        traefik.http.routers.gateway.rule=Host(`co.pigeosolutions.fr`) && (
         PathPrefix(`/analytics`)
         || PathPrefix(`/datafeeder`)
         || PathPrefix(`/datahub`)
@@ -97,7 +102,7 @@ services:
       # Add trailing slash to well-known apps
       - "traefik.http.routers.traefik-redirect.tls=true"
       - >-
-        traefik.http.routers.traefik-redirect.rule=Host(`georchestra-127-0-1-1.traefik.me`) && (
+        traefik.http.routers.traefik-redirect.rule=Host(`co.pigeosolutions.fr`) && (
         Path(`/analytics`)
         || Path(`/datafeeder`)
         || Path(`/datahub`)
@@ -120,7 +125,7 @@ services:
 #    labels:
 #      - "traefik.enable=true"
 #      - "traefik.http.routers.cas.tls=true"
-#      - "traefik.http.routers.cas.rule=Host(`georchestra-127-0-1-1.traefik.me`) && PathPrefix(`/cas`)"
+#      - "traefik.http.routers.cas.rule=Host(`co.pigeosolutions.fr`) && PathPrefix(`/cas`)"
 
   smtp:
     image: camptocamp/smtp-sink:latest
@@ -144,7 +149,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.webmail.tls=true"
-      - "traefik.http.routers.webmail.rule=Host(`georchestra-127-0-1-1.traefik.me`) && PathPrefix(`/webmail`)"
+      - "traefik.http.routers.webmail.rule=Host(`co.pigeosolutions.fr`) && PathPrefix(`/webmail`)"
     restart: always
 
   ssh:
@@ -154,3 +159,8 @@ services:
     volumes:
       - geoserver_geodata:/mnt/geoserver_geodata
     restart: always
+
+  smtp-exim:
+    image: camptocamp/exim:latest
+    env_file:
+      - .envs-exim

@@ -1,4 +1,4 @@
 # envs-common
-FQDN=georchestra-127-0-1-1.traefik.me
-SMTPHOST=smtp
+FQDN=co.pigeosolutions.fr
+SMTPHOST=smtp-exim
 SMTPPORT=25
